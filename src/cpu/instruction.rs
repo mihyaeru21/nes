@@ -88,7 +88,7 @@ pub enum Kind {
     // SED,
     SEI,
     // その他
-    BRK,
+    // BRK,
     NOP,
 }
 

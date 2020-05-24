@@ -1,11 +1,11 @@
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Registers {
-    accumulator: u8,
-    index_x: u8,
-    index_y: u8,
-    stack_pointer: u16,
-    status: Status,
-    program_counter: u16,
+    pub accumulator: u8,
+    pub index_x: u8,
+    pub index_y: u8,
+    pub stack_pointer: u16,
+    pub status: Status,
+    pub program_counter: u16,
 }
 
 #[derive(Debug)]
@@ -18,4 +18,19 @@ pub struct Status {
     pub irq_prohibited: bool,
     pub zero: bool,
     pub carry: bool,
+}
+
+impl Default for Status {
+    fn default() -> Self {
+        Self {
+            negative: false,
+            overflow: false,
+            reserved: true, // 常にセットされている
+            break_mode: false,
+            decimal_mode: false,
+            irq_prohibited: false,
+            zero: false,
+            carry: false,
+        }
+    }
 }
