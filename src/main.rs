@@ -1,3 +1,4 @@
+mod cpu;
 mod rom;
 
 fn main() {
