@@ -1,23 +1,23 @@
 #[derive(Debug, Default)]
 pub struct Registers {
-    pub accumulator: u8,
-    pub index_x: u8,
-    pub index_y: u8,
-    pub stack_pointer: u16,
-    pub status: Status,
-    pub program_counter: u16,
+    pub accumulator: u8,      // A
+    pub index_x: u8,          // X
+    pub index_y: u8,          // Y
+    pub stack_pointer: u16,   // S
+    pub status: Status,       // P
+    pub program_counter: u16, // PC
 }
 
 #[derive(Debug)]
 pub struct Status {
-    pub negative: bool,
-    pub overflow: bool,
-    pub reserved: bool,
-    pub break_mode: bool,
-    pub decimal_mode: bool,
-    pub irq_prohibited: bool,
-    pub zero: bool,
-    pub carry: bool,
+    pub negative: bool,       // N
+    pub overflow: bool,       // V
+    pub reserved: bool,       // R
+    pub break_mode: bool,     // B
+    pub decimal_mode: bool,   // D
+    pub irq_prohibited: bool, // I
+    pub zero: bool,           // Z
+    pub carry: bool,          // C
 }
 
 impl Default for Status {
