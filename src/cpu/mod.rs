@@ -37,16 +37,28 @@ impl Cpu {
             _ => (0x00, 0x00),
         };
 
+        let mut calc_result = 0x00;
         match instruction.kind {
             Kind::SEI => {
                 self.registers.status.irq_prohibited = true;
             }
             Kind::LDX => {
                 self.registers.index_x = operands.0;
-                self.registers.status.zero = operands.0 == 0x00;
-                // TODO: Nも変わる
+                calc_result = self.registers.index_x;
+            }
+            Kind::TXS => {
+                self.registers.stack_pointer = self.registers.index_x;
+                calc_result = self.registers.stack_pointer;
             }
             _ => {}
+        }
+
+        if instruction.affects_status_negative() {
+            // TODO
+        }
+
+        if instruction.affects_status_zero() {
+            self.registers.status.zero = calc_result == 0x00;
         }
     }
 
@@ -76,8 +88,8 @@ impl Cpu {
     }
 
     #[cfg(test)]
-    pub fn get_registers(&self) -> &Registers {
-        &self.registers
+    pub fn get_registers(&mut self) -> &mut Registers {
+        &mut self.registers
     }
 }
 
@@ -102,7 +114,7 @@ mod test {
     }
 
     #[test]
-    fn test_instruction_sei() {
+    fn test_instruction_sei_0x78() {
         let (mut cpu, mut _ram) = prepare(&[0x78]);
         cpu.run();
         assert!(cpu.get_registers().status.irq_prohibited);
@@ -116,6 +128,19 @@ mod test {
         assert_eq!(cpu.get_registers().status.zero, false);
         cpu.run();
         assert_eq!(cpu.get_registers().index_x, 0x00);
+        assert_eq!(cpu.get_registers().status.zero, true);
+    }
+
+    #[test]
+    fn test_instruction_txs_0x9a() {
+        let (mut cpu, mut _ram) = prepare(&[0x9a, 0x9a]);
+        cpu.get_registers().index_x = 0x12;
+        cpu.run();
+        assert_eq!(cpu.get_registers().stack_pointer, 0x12);
+        assert_eq!(cpu.get_registers().status.zero, false);
+        cpu.get_registers().index_x = 0x00;
+        cpu.run();
+        assert_eq!(cpu.get_registers().stack_pointer, 0x00);
         assert_eq!(cpu.get_registers().status.zero, true);
     }
 

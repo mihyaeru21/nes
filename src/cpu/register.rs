@@ -3,7 +3,7 @@ pub struct Registers {
     pub accumulator: u8,      // A
     pub index_x: u8,          // X
     pub index_y: u8,          // Y
-    pub stack_pointer: u16,   // S
+    pub stack_pointer: u8,    // S
     pub status: Status,       // P
     pub program_counter: u16, // PC
 }
