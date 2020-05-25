@@ -54,7 +54,7 @@ impl Cpu {
         }
 
         if instruction.affects_status_negative() {
-            // TODO
+            self.registers.status.negative = (calc_result >> 7) == 0x01;
         }
 
         if instruction.affects_status_zero() {
@@ -125,22 +125,26 @@ mod test {
         let (mut cpu, mut _ram) = prepare(&[0xa2, 0xff, 0xa2, 0x00]);
         cpu.run();
         assert_eq!(cpu.get_registers().index_x, 0xff);
+        assert_eq!(cpu.get_registers().status.negative, true);
         assert_eq!(cpu.get_registers().status.zero, false);
         cpu.run();
         assert_eq!(cpu.get_registers().index_x, 0x00);
+        assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
     }
 
     #[test]
     fn test_instruction_txs_0x9a() {
         let (mut cpu, mut _ram) = prepare(&[0x9a, 0x9a]);
-        cpu.get_registers().index_x = 0x12;
+        cpu.get_registers().index_x = 0xff;
         cpu.run();
-        assert_eq!(cpu.get_registers().stack_pointer, 0x12);
+        assert_eq!(cpu.get_registers().stack_pointer, 0xff);
+        assert_eq!(cpu.get_registers().status.negative, true);
         assert_eq!(cpu.get_registers().status.zero, false);
         cpu.get_registers().index_x = 0x00;
         cpu.run();
         assert_eq!(cpu.get_registers().stack_pointer, 0x00);
+        assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
     }
 
