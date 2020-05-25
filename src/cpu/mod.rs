@@ -43,6 +43,8 @@ impl Cpu {
             }
             Kind::LDX => {
                 self.registers.index_x = operands.0;
+                self.registers.status.zero = operands.0 == 0x00;
+                // TODO: Nも変わる
             }
             _ => {}
         }
@@ -108,9 +110,13 @@ mod test {
 
     #[test]
     fn test_instruction_ldx_0xa2() {
-        let (mut cpu, mut _ram) = prepare(&[0xa2, 0xff]);
+        let (mut cpu, mut _ram) = prepare(&[0xa2, 0xff, 0xa2, 0x00]);
         cpu.run();
         assert_eq!(cpu.get_registers().index_x, 0xff);
+        assert_eq!(cpu.get_registers().status.zero, false);
+        cpu.run();
+        assert_eq!(cpu.get_registers().index_x, 0x00);
+        assert_eq!(cpu.get_registers().status.zero, true);
     }
 
     fn prepare(initial_bytes: &[u8]) -> (Cpu, Ram) {
