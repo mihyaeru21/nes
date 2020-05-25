@@ -1,9 +1,11 @@
-use instruction::{Instruction, Kind};
+use instruction::{Addressing, Instruction, Kind};
 use register::Registers;
 use std::{cell::RefCell, rc::Rc};
 
 mod instruction;
 mod register;
+
+type Ram = Rc<RefCell<Vec<u8>>>;
 
 #[derive(Debug)]
 pub struct Cpu {
@@ -29,9 +31,18 @@ impl Cpu {
     pub fn run(&mut self) {
         let opcode = self.fetch();
         let instruction = Instruction::from_opcode(opcode);
+
+        let operands = match instruction.addressing {
+            Addressing::Immediate => (self.fetch(), 0x00),
+            _ => (0x00, 0x00),
+        };
+
         match instruction.kind {
             Kind::SEI => {
                 self.registers.status.irq_prohibited = true;
+            }
+            Kind::LDX => {
+                self.registers.index_x = operands.0;
             }
             _ => {}
         }
@@ -68,8 +79,6 @@ impl Cpu {
     }
 }
 
-type Ram = Rc<RefCell<Vec<u8>>>;
-
 #[cfg(test)]
 mod test {
     use super::{Cpu, Ram};
@@ -95,6 +104,13 @@ mod test {
         let (mut cpu, mut _ram) = prepare(&[0x78]);
         cpu.run();
         assert!(cpu.get_registers().status.irq_prohibited);
+    }
+
+    #[test]
+    fn test_instruction_ldx_0xa2() {
+        let (mut cpu, mut _ram) = prepare(&[0xa2, 0xff]);
+        cpu.run();
+        assert_eq!(cpu.get_registers().index_x, 0xff);
     }
 
     fn prepare(initial_bytes: &[u8]) -> (Cpu, Ram) {
