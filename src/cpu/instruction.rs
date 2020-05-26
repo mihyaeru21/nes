@@ -26,14 +26,14 @@ impl Instruction {
 
     pub fn affects_status_negative(&self) -> bool {
         match self.kind {
-            Kind::LDX | Kind::TXS => true,
+            Kind::LDX | Kind::LDA | Kind::TXS => true,
             _ => false,
         }
     }
 
     pub fn affects_status_zero(&self) -> bool {
         match self.kind {
-            Kind::LDX | Kind::TXS => true,
+            Kind::LDX | Kind::LDA | Kind::TXS => true,
             _ => false,
         }
     }

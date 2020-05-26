@@ -46,6 +46,10 @@ impl Cpu {
                 self.registers.index_x = operands.0;
                 calc_result = self.registers.index_x;
             }
+            Kind::LDA => {
+                self.registers.accumulator = operands.0;
+                calc_result = self.registers.accumulator;
+            }
             Kind::TXS => {
                 self.registers.stack_pointer = self.registers.index_x;
                 calc_result = self.registers.stack_pointer;
@@ -129,6 +133,19 @@ mod test {
         assert_eq!(cpu.get_registers().status.zero, false);
         cpu.run();
         assert_eq!(cpu.get_registers().index_x, 0x00);
+        assert_eq!(cpu.get_registers().status.negative, false);
+        assert_eq!(cpu.get_registers().status.zero, true);
+    }
+
+    #[test]
+    fn test_instruction_lda_0xa9() {
+        let (mut cpu, mut _ram) = prepare(&[0xa9, 0xff, 0xa9, 0x00]);
+        cpu.run();
+        assert_eq!(cpu.get_registers().accumulator, 0xff);
+        assert_eq!(cpu.get_registers().status.negative, true);
+        assert_eq!(cpu.get_registers().status.zero, false);
+        cpu.run();
+        assert_eq!(cpu.get_registers().accumulator, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
     }
