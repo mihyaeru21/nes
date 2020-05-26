@@ -42,6 +42,10 @@ impl Cpu {
             Kind::SEI => {
                 self.registers.status.irq_prohibited = true;
             }
+            Kind::TXS => {
+                self.registers.stack_pointer = self.registers.index_x;
+                calc_result = self.registers.stack_pointer;
+            }
             Kind::LDX => {
                 self.registers.index_x = operands.0;
                 calc_result = self.registers.index_x;
@@ -49,10 +53,6 @@ impl Cpu {
             Kind::LDA => {
                 self.registers.accumulator = operands.0;
                 calc_result = self.registers.accumulator;
-            }
-            Kind::TXS => {
-                self.registers.stack_pointer = self.registers.index_x;
-                calc_result = self.registers.stack_pointer;
             }
             _ => {}
         }
@@ -125,6 +125,21 @@ mod test {
     }
 
     #[test]
+    fn test_instruction_txs_0x9a() {
+        let (mut cpu, mut _ram) = prepare(&[0x9a, 0x9a]);
+        cpu.get_registers().index_x = 0xff;
+        cpu.run();
+        assert_eq!(cpu.get_registers().stack_pointer, 0xff);
+        assert_eq!(cpu.get_registers().status.negative, true);
+        assert_eq!(cpu.get_registers().status.zero, false);
+        cpu.get_registers().index_x = 0x00;
+        cpu.run();
+        assert_eq!(cpu.get_registers().stack_pointer, 0x00);
+        assert_eq!(cpu.get_registers().status.negative, false);
+        assert_eq!(cpu.get_registers().status.zero, true);
+    }
+
+    #[test]
     fn test_instruction_ldx_0xa2() {
         let (mut cpu, mut _ram) = prepare(&[0xa2, 0xff, 0xa2, 0x00]);
         cpu.run();
@@ -146,21 +161,6 @@ mod test {
         assert_eq!(cpu.get_registers().status.zero, false);
         cpu.run();
         assert_eq!(cpu.get_registers().accumulator, 0x00);
-        assert_eq!(cpu.get_registers().status.negative, false);
-        assert_eq!(cpu.get_registers().status.zero, true);
-    }
-
-    #[test]
-    fn test_instruction_txs_0x9a() {
-        let (mut cpu, mut _ram) = prepare(&[0x9a, 0x9a]);
-        cpu.get_registers().index_x = 0xff;
-        cpu.run();
-        assert_eq!(cpu.get_registers().stack_pointer, 0xff);
-        assert_eq!(cpu.get_registers().status.negative, true);
-        assert_eq!(cpu.get_registers().status.zero, false);
-        cpu.get_registers().index_x = 0x00;
-        cpu.run();
-        assert_eq!(cpu.get_registers().stack_pointer, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
     }
