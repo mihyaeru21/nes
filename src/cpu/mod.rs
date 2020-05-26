@@ -34,6 +34,7 @@ impl Cpu {
 
         let operands = match instruction.addressing {
             Addressing::Immediate => (self.fetch(), 0x00),
+            Addressing::AbsoluteX => (self.fetch(), self.fetch()),
             _ => (0x00, 0x00),
         };
 
@@ -51,7 +52,14 @@ impl Cpu {
                 calc_result = self.registers.index_x;
             }
             Kind::LDA => {
-                self.registers.accumulator = operands.0;
+                self.registers.accumulator = match instruction.addressing {
+                    Addressing::Immediate => operands.0,
+                    Addressing::AbsoluteX => {
+                        let ptr = (operands.0 as u16) + ((operands.1 as u16) << 8);
+                        self.read(ptr + (self.registers.index_x as u16))
+                    }
+                    _ => panic!("hoge"), // TODO
+                };
                 calc_result = self.registers.accumulator;
             }
             _ => {}
@@ -119,14 +127,14 @@ mod test {
 
     #[test]
     fn test_instruction_sei_0x78() {
-        let (mut cpu, mut _ram) = prepare(&[0x78]);
+        let (mut cpu, _ram) = prepare(&[0x78]);
         cpu.run();
         assert!(cpu.get_registers().status.irq_prohibited);
     }
 
     #[test]
     fn test_instruction_txs_0x9a() {
-        let (mut cpu, mut _ram) = prepare(&[0x9a, 0x9a]);
+        let (mut cpu, _ram) = prepare(&[0x9a, 0x9a]);
         cpu.get_registers().index_x = 0xff;
         cpu.run();
         assert_eq!(cpu.get_registers().stack_pointer, 0xff);
@@ -141,7 +149,7 @@ mod test {
 
     #[test]
     fn test_instruction_ldx_0xa2() {
-        let (mut cpu, mut _ram) = prepare(&[0xa2, 0xff, 0xa2, 0x00]);
+        let (mut cpu, _ram) = prepare(&[0xa2, 0xff, 0xa2, 0x00]);
         cpu.run();
         assert_eq!(cpu.get_registers().index_x, 0xff);
         assert_eq!(cpu.get_registers().status.negative, true);
@@ -154,7 +162,7 @@ mod test {
 
     #[test]
     fn test_instruction_lda_0xa9() {
-        let (mut cpu, mut _ram) = prepare(&[0xa9, 0xff, 0xa9, 0x00]);
+        let (mut cpu, _ram) = prepare(&[0xa9, 0xff, 0xa9, 0x00]);
         cpu.run();
         assert_eq!(cpu.get_registers().accumulator, 0xff);
         assert_eq!(cpu.get_registers().status.negative, true);
@@ -163,6 +171,22 @@ mod test {
         assert_eq!(cpu.get_registers().accumulator, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
+    }
+
+    #[test]
+    fn test_instruction_lda_0xbd() {
+        let (mut cpu, ram) = prepare(&[0xbd, 0x00, 0x00, 0xbd, 0x23, 0x01]);
+        {
+            let mut wram = ram.borrow_mut();
+            wram[0x0056] = 0xff;
+            wram[0x0179] = 0x45;
+        }
+        cpu.get_registers().index_x = 0x56;
+
+        cpu.run();
+        assert_eq!(cpu.get_registers().accumulator, 0xff);
+        cpu.run();
+        assert_eq!(cpu.get_registers().accumulator, 0x45);
     }
 
     fn prepare(initial_bytes: &[u8]) -> (Cpu, Ram) {
