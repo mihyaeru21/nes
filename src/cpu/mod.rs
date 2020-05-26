@@ -32,10 +32,16 @@ impl Cpu {
         let opcode = self.fetch();
         let instruction = Instruction::from_opcode(opcode);
 
-        let operands = match instruction.addressing {
-            Addressing::Immediate => (self.fetch(), 0x00),
-            Addressing::AbsoluteX => (self.fetch(), self.fetch()),
-            _ => (0x00, 0x00),
+        let operand: u8 = match instruction.addressing {
+            Addressing::Immediate => self.fetch(),
+            Addressing::AbsoluteX => {
+                let lower = self.fetch() as u16;
+                let upper = self.fetch() as u16;
+                let x = self.registers.index_x as u16;
+                let addr = lower + (upper << 8) + x;
+                self.read(addr)
+            }
+            _ => 0x00,
         };
 
         let mut calc_result = 0x00;
@@ -48,18 +54,11 @@ impl Cpu {
                 calc_result = self.registers.stack_pointer;
             }
             Kind::LDX => {
-                self.registers.index_x = operands.0;
+                self.registers.index_x = operand;
                 calc_result = self.registers.index_x;
             }
             Kind::LDA => {
-                self.registers.accumulator = match instruction.addressing {
-                    Addressing::Immediate => operands.0,
-                    Addressing::AbsoluteX => {
-                        let ptr = (operands.0 as u16) + ((operands.1 as u16) << 8);
-                        self.read(ptr + (self.registers.index_x as u16))
-                    }
-                    _ => panic!("hoge"), // TODO
-                };
+                self.registers.accumulator = operand;
                 calc_result = self.registers.accumulator;
             }
             _ => {}
