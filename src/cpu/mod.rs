@@ -53,70 +53,78 @@ impl Cpu {
             _ => Operand::None,
         };
 
-        let mut calc_result = 0x00;
-        match instruction.kind {
+        let calc_result = match instruction.kind {
             Kind::SEI => {
                 self.registers.status.irq_prohibited = true;
+                None
             }
             Kind::DEY => {
                 self.registers.index_y = self.registers.index_y.wrapping_sub(1);
-                calc_result = self.registers.index_y;
+                Some(self.registers.index_y)
             }
-            Kind::STA => match operand {
-                Operand::Address(addr) => {
-                    self.write(addr, self.registers.accumulator);
-                }
-                _ => {}
-            },
+            Kind::STA => {
+                match operand {
+                    Operand::Address(addr) => {
+                        self.write(addr, self.registers.accumulator);
+                    }
+                    _ => {}
+                };
+                None
+            }
             Kind::TXS => {
                 self.registers.stack_pointer = self.registers.index_x;
-                calc_result = self.registers.stack_pointer;
+                Some(self.registers.stack_pointer)
             }
             Kind::LDY => {
                 match operand {
                     Operand::Value(v) => self.registers.index_y = v,
                     Operand::Address(addr) => self.registers.index_y = self.read(addr),
                     _ => {}
-                }
-                calc_result = self.registers.index_y;
+                };
+                Some(self.registers.index_y)
             }
             Kind::LDX => {
                 match operand {
                     Operand::Value(v) => self.registers.index_x = v,
                     Operand::Address(addr) => self.registers.index_x = self.read(addr),
                     _ => {}
-                }
-                calc_result = self.registers.index_x;
+                };
+                Some(self.registers.index_x)
             }
             Kind::LDA => {
                 match operand {
                     Operand::Value(v) => self.registers.accumulator = v,
                     Operand::Address(addr) => self.registers.accumulator = self.read(addr),
                     _ => {}
-                }
-                calc_result = self.registers.accumulator;
+                };
+                Some(self.registers.accumulator)
             }
-            Kind::BNE => match operand {
-                Operand::Address(addr) => {
-                    if !self.registers.status.zero {
-                        self.registers.program_counter = addr;
+            Kind::BNE => {
+                match operand {
+                    Operand::Address(addr) => {
+                        if !self.registers.status.zero {
+                            self.registers.program_counter = addr;
+                        }
                     }
-                }
-                _ => {}
-            },
+                    _ => {}
+                };
+                None
+            }
             Kind::INX => {
                 self.registers.index_x = self.registers.index_x.wrapping_add(1);
-                calc_result = self.registers.index_x;
+                Some(self.registers.index_x)
             }
-            _ => {}
-        }
+            _ => None,
+        };
 
-        if instruction.affects_status_negative() {
-            self.registers.status.negative = (calc_result >> 7) == 0x01;
-        }
+        if let Some(result) = calc_result {
+            if instruction.affects_status_negative() {
+                self.registers.status.negative = (result >> 7) == 0x01;
+            }
 
-        if instruction.affects_status_zero() {
-            self.registers.status.zero = calc_result == 0x00;
+            if instruction.affects_status_zero() {
+                self.registers.status.zero = result == 0x00;
+            }
         }
     }
 
