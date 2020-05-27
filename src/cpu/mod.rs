@@ -48,6 +48,10 @@ impl Cpu {
             Kind::SEI => {
                 self.registers.status.irq_prohibited = true;
             }
+            Kind::DEY => {
+                self.registers.index_y = self.registers.index_y.wrapping_sub(1);
+                calc_result = self.registers.index_y;
+            }
             Kind::STA => match operand {
                 Operand::Address(addr) => {
                     self.write(addr, self.registers.accumulator);
@@ -174,6 +178,21 @@ mod test {
         let (mut cpu, _ram) = prepare(&[0x78]);
         cpu.run();
         assert!(cpu.get_registers().status.irq_prohibited);
+    }
+
+    #[test]
+    fn test_instruction_dey_0x88() {
+        let (mut cpu, _ram) = prepare(&[0x88, 0x88]);
+        cpu.get_registers().index_y = 0x01;
+
+        cpu.run();
+        assert_eq!(cpu.get_registers().index_y, 0x00);
+        assert_eq!(cpu.get_registers().status.negative, false);
+        assert_eq!(cpu.get_registers().status.zero, true);
+        cpu.run();
+        assert_eq!(cpu.get_registers().index_y, 0xff);
+        assert_eq!(cpu.get_registers().status.negative, true);
+        assert_eq!(cpu.get_registers().status.zero, false);
     }
 
     #[test]
