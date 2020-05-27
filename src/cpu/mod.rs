@@ -34,6 +34,16 @@ impl Cpu {
 
         let operand: Operand = match instruction.addressing {
             Addressing::Immediate => Operand::Value(self.fetch()),
+            Addressing::Relative => {
+                let offset = self.fetch() as i8;
+                let pc = self.registers.program_counter;
+                let addr = if offset >= 0 {
+                    pc.wrapping_add(offset as u16)
+                } else {
+                    pc.wrapping_sub(offset.abs() as u16)
+                };
+                Operand::Address(addr)
+            }
             Addressing::Absolute => Operand::Address(self.fetch_word()),
             Addressing::AbsoluteX => {
                 let addr = self.fetch_word();
@@ -86,6 +96,14 @@ impl Cpu {
                 }
                 calc_result = self.registers.accumulator;
             }
+            Kind::BNE => match operand {
+                Operand::Address(addr) => {
+                    if !self.registers.status.zero {
+                        self.registers.program_counter = addr;
+                    }
+                }
+                _ => {}
+            },
             Kind::INX => {
                 self.registers.index_x = self.registers.index_x.wrapping_add(1);
                 calc_result = self.registers.index_x;
@@ -271,6 +289,21 @@ mod test {
         assert_eq!(cpu.get_registers().accumulator, 0xff);
         cpu.run();
         assert_eq!(cpu.get_registers().accumulator, 0x45);
+    }
+
+    #[test]
+    fn test_instruction_bne_0xd0() {
+        // INXの1回目は0になるから分岐せず、2回目のINXを実行したあとに分岐する
+        let (mut cpu, _ram) = prepare(&[0xe8, 0xd0, 0xfa, 0xe8, 0xd0, 0xfa]);
+        cpu.get_registers().index_x = 0xff;
+
+        assert_eq!(cpu.get_registers().program_counter, 0x8000);
+        cpu.run();
+        cpu.run();
+        assert_eq!(cpu.get_registers().program_counter, 0x8003);
+        cpu.run();
+        cpu.run();
+        assert_eq!(cpu.get_registers().program_counter, 0x8000);
     }
 
     #[test]
