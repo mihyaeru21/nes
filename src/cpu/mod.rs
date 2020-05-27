@@ -32,16 +32,15 @@ impl Cpu {
         let opcode = self.fetch();
         let instruction = Instruction::from_opcode(opcode);
 
-        let operand: u8 = match instruction.addressing {
-            Addressing::Immediate => self.fetch(),
+        let operand: Operand = match instruction.addressing {
+            Addressing::Immediate => Operand::Value(self.fetch()),
+            Addressing::Absolute => Operand::Address(self.fetch_word()),
             Addressing::AbsoluteX => {
-                let lower = self.fetch() as u16;
-                let upper = self.fetch() as u16;
+                let addr = self.fetch_word();
                 let x = self.registers.index_x as u16;
-                let addr = lower + (upper << 8) + x;
-                self.read(addr)
+                Operand::Address(addr + x)
             }
-            _ => 0x00,
+            _ => Operand::None,
         };
 
         let mut calc_result = 0x00;
@@ -54,11 +53,19 @@ impl Cpu {
                 calc_result = self.registers.stack_pointer;
             }
             Kind::LDX => {
-                self.registers.index_x = operand;
+                match operand {
+                    Operand::Value(v) => self.registers.index_x = v,
+                    Operand::Address(addr) => self.registers.index_x = self.read(addr),
+                    _ => {}
+                }
                 calc_result = self.registers.index_x;
             }
             Kind::LDA => {
-                self.registers.accumulator = operand;
+                match operand {
+                    Operand::Value(v) => self.registers.accumulator = v,
+                    Operand::Address(addr) => self.registers.accumulator = self.read(addr),
+                    _ => {}
+                }
                 calc_result = self.registers.accumulator;
             }
             _ => {}
@@ -77,6 +84,12 @@ impl Cpu {
         let value = self.read(self.registers.program_counter);
         self.registers.program_counter += 1;
         value
+    }
+
+    fn fetch_word(&mut self) -> u16 {
+        let lower = self.fetch() as u16;
+        let upper = self.fetch() as u16;
+        lower + (upper << 8)
     }
 
     fn read(&self, addr: u16) -> u8 {
@@ -102,6 +115,13 @@ impl Cpu {
     pub fn get_registers(&mut self) -> &mut Registers {
         &mut self.registers
     }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+enum Operand {
+    Address(u16),
+    Value(u8),
+    None,
 }
 
 #[cfg(test)]
@@ -176,9 +196,9 @@ mod test {
     fn test_instruction_lda_0xbd() {
         let (mut cpu, ram) = prepare(&[0xbd, 0x00, 0x00, 0xbd, 0x23, 0x01]);
         {
-            let mut wram = ram.borrow_mut();
-            wram[0x0056] = 0xff;
-            wram[0x0179] = 0x45;
+            let mut ram = ram.borrow_mut();
+            ram[0x0056] = 0xff;
+            ram[0x0179] = 0x45;
         }
         cpu.get_registers().index_x = 0x56;
 
