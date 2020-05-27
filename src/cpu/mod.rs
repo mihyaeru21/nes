@@ -38,7 +38,7 @@ impl Cpu {
             Addressing::AbsoluteX => {
                 let addr = self.fetch_word();
                 let x = self.registers.index_x as u16;
-                Operand::Address(addr + x)
+                Operand::Address(addr.wrapping_add(x))
             }
             _ => Operand::None,
         };
@@ -81,6 +81,10 @@ impl Cpu {
                     _ => {}
                 }
                 calc_result = self.registers.accumulator;
+            }
+            Kind::INX => {
+                self.registers.index_x = self.registers.index_x.wrapping_add(1);
+                calc_result = self.registers.index_x;
             }
             _ => {}
         }
@@ -248,6 +252,21 @@ mod test {
         assert_eq!(cpu.get_registers().accumulator, 0xff);
         cpu.run();
         assert_eq!(cpu.get_registers().accumulator, 0x45);
+    }
+
+    #[test]
+    fn test_instruction_inx_0xe8() {
+        let (mut cpu, _ram) = prepare(&[0xe8, 0xe8]);
+        cpu.get_registers().index_x = 0xfe;
+
+        cpu.run();
+        assert_eq!(cpu.get_registers().index_x, 0xff);
+        assert_eq!(cpu.get_registers().status.negative, true);
+        assert_eq!(cpu.get_registers().status.zero, false);
+        cpu.run();
+        assert_eq!(cpu.get_registers().index_x, 0x00);
+        assert_eq!(cpu.get_registers().status.negative, false);
+        assert_eq!(cpu.get_registers().status.zero, true);
     }
 
     fn prepare(initial_bytes: &[u8]) -> (Cpu, Ram) {
