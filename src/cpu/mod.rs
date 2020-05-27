@@ -58,6 +58,14 @@ impl Cpu {
                 self.registers.stack_pointer = self.registers.index_x;
                 calc_result = self.registers.stack_pointer;
             }
+            Kind::LDY => {
+                match operand {
+                    Operand::Value(v) => self.registers.index_y = v,
+                    Operand::Address(addr) => self.registers.index_y = self.read(addr),
+                    _ => {}
+                }
+                calc_result = self.registers.index_y;
+            }
             Kind::LDX => {
                 match operand {
                     Operand::Value(v) => self.registers.index_x = v,
@@ -183,6 +191,19 @@ mod test {
         cpu.get_registers().index_x = 0x00;
         cpu.run();
         assert_eq!(cpu.get_registers().stack_pointer, 0x00);
+        assert_eq!(cpu.get_registers().status.negative, false);
+        assert_eq!(cpu.get_registers().status.zero, true);
+    }
+
+    #[test]
+    fn test_instruction_ldy_0xa0() {
+        let (mut cpu, _ram) = prepare(&[0xa0, 0xff, 0xa0, 0x00]);
+        cpu.run();
+        assert_eq!(cpu.get_registers().index_y, 0xff);
+        assert_eq!(cpu.get_registers().status.negative, true);
+        assert_eq!(cpu.get_registers().status.zero, false);
+        cpu.run();
+        assert_eq!(cpu.get_registers().index_y, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
     }
