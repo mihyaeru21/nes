@@ -48,6 +48,12 @@ impl Cpu {
             Kind::SEI => {
                 self.registers.status.irq_prohibited = true;
             }
+            Kind::STA => match operand {
+                Operand::Address(addr) => {
+                    self.write(addr, self.registers.accumulator);
+                }
+                _ => {}
+            },
             Kind::TXS => {
                 self.registers.stack_pointer = self.registers.index_x;
                 calc_result = self.registers.stack_pointer;
@@ -99,9 +105,7 @@ impl Cpu {
                 let i = addr - 0x8000;
                 self.rom[i as usize]
             }
-            _ => {
-                panic!("Not implemented!");
-            }
+            _ => panic!("Not implemented!"),
         }
     }
 
@@ -109,6 +113,15 @@ impl Cpu {
         let lower_byte = self.read(addr) as u16;
         let upper_byte = self.read(addr + 1) as u16;
         lower_byte | (upper_byte << 8)
+    }
+
+    fn write(&self, addr: u16, value: u8) {
+        match addr {
+            0x0000..=0x07ff => {
+                self.ram.borrow_mut()[addr as usize] = value;
+            }
+            _ => panic!("Not implemented!"),
+        }
     }
 
     #[cfg(test)]
@@ -149,6 +162,14 @@ mod test {
         let (mut cpu, _ram) = prepare(&[0x78]);
         cpu.run();
         assert!(cpu.get_registers().status.irq_prohibited);
+    }
+
+    #[test]
+    fn test_instruction_sta_0x8d() {
+        let (mut cpu, ram) = prepare(&[0x8d, 0x23, 0x01]);
+        cpu.get_registers().accumulator = 0x56;
+        cpu.run();
+        assert_eq!(ram.borrow()[0x0123], 0x56);
     }
 
     #[test]
