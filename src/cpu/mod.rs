@@ -54,6 +54,15 @@ impl Cpu {
         };
 
         let calc_result = match instruction.kind {
+            Kind::JMP => {
+                match operand {
+                    Operand::Address(addr) => {
+                        self.registers.program_counter = addr;
+                    }
+                    _ => {}
+                }
+                None
+            }
             Kind::SEI => {
                 self.registers.status.irq_prohibited = true;
                 None
@@ -197,6 +206,14 @@ mod test {
 
         cpu.reset();
         assert_eq!(cpu.get_registers().program_counter, 0x8000);
+    }
+
+    #[test]
+    fn test_instruction_jmp_0x4c() {
+        let (mut cpu, _ram) = prepare(&[0x4c, 0xff, 0x80]);
+
+        cpu.run();
+        assert_eq!(cpu.get_registers().program_counter, 0x80ff);
     }
 
     #[test]
