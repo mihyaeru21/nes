@@ -28,10 +28,11 @@ impl Cpu {
         self.registers.program_counter = self.read_word(0xfffc)
     }
 
-    pub fn run(&mut self) {
+    pub fn run(&mut self) -> u8 {
         let opcode = self.fetch();
         let instruction = Instruction::from_opcode(opcode);
 
+        let mut clock_count = instruction.clock();
         let operand: Operand = match instruction.addressing {
             Addressing::Immediate => Operand::Value(self.fetch()),
             Addressing::Relative => {
@@ -42,13 +43,20 @@ impl Cpu {
                 } else {
                     pc.wrapping_sub(offset.abs() as u16)
                 };
+                if (pc >> 8) != (addr >> 8) {
+                    clock_count += 1; // page cross
+                }
                 Operand::Address(addr)
             }
             Addressing::Absolute => Operand::Address(self.fetch_word()),
             Addressing::AbsoluteX => {
-                let addr = self.fetch_word();
+                let orig = self.fetch_word();
                 let x = self.registers.index_x as u16;
-                Operand::Address(addr.wrapping_add(x))
+                let addr = orig.wrapping_add(x);
+                if (orig >> 8) != (addr >> 8) {
+                    clock_count += 1; // page cross
+                }
+                Operand::Address(addr)
             }
             _ => Operand::None,
         };
@@ -113,6 +121,7 @@ impl Cpu {
                     Operand::Address(addr) => {
                         if !self.registers.status.zero {
                             self.registers.program_counter = addr;
+                            clock_count += 1;
                         }
                     }
                     _ => {}
@@ -123,7 +132,6 @@ impl Cpu {
                 self.registers.index_x = self.registers.index_x.wrapping_add(1);
                 Some(self.registers.index_x)
             }
-            _ => None,
         };
 
         if let Some(result) = calc_result {
@@ -135,6 +143,8 @@ impl Cpu {
                 self.registers.status.zero = result == 0x00;
             }
         }
+
+        clock_count
     }
 
     fn fetch(&mut self) -> u8 {

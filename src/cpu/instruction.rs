@@ -19,9 +19,33 @@ impl Instruction {
             0xbd => (Kind::LDA, Addressing::AbsoluteX),
             0xd0 => (Kind::BNE, Addressing::Relative),
             0xe8 => (Kind::INX, Addressing::Implied),
-            _ => (Kind::NOP, Addressing::Implied),
+            _ => panic!("Not Implemented!"),
         };
         Self { kind, addressing }
+    }
+
+    pub fn clock(&self) -> u8 {
+        // とりあえずhello worldを動かすのに必要なやつ
+        let base = match self.kind {
+            Kind::JMP => 1,
+            Kind::SEI => 2,
+            Kind::DEY => 2,
+            Kind::STA => 2,
+            Kind::TXS => 2,
+            Kind::LDY => 2,
+            Kind::LDX => 2,
+            Kind::LDA => 2,
+            Kind::BNE => 2,
+            Kind::INX => 2,
+        };
+
+        base + match self.addressing {
+            Addressing::Implied => 0,
+            Addressing::Immediate => 0,
+            Addressing::Relative => 0,
+            Addressing::Absolute => 2,
+            Addressing::AbsoluteX => 2,
+        }
     }
 
     pub fn affects_status_negative(&self) -> bool {
@@ -103,7 +127,7 @@ pub enum Kind {
     SEI,
     // その他
     // BRK,
-    NOP,
+    // NOP,
 }
 
 #[derive(Debug, PartialEq, Eq)]
