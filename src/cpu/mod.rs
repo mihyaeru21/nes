@@ -33,38 +33,10 @@ impl Cpu {
         let instruction = Instruction::from_opcode(opcode);
 
         let mut clock_count = instruction.clock();
-        let operand: Operand = match instruction.addressing {
-            Addressing::Immediate => Operand::Value(self.fetch()),
-            Addressing::Relative => {
-                let offset = self.fetch() as i8;
-                let pc = self.registers.program_counter;
-                let addr = if offset >= 0 {
-                    pc.wrapping_add(offset as u16)
-                } else {
-                    pc.wrapping_sub(offset.abs() as u16)
-                };
-                if (pc >> 8) != (addr >> 8) {
-                    clock_count += 1; // page cross
-                }
-                Operand::Address(addr)
-            }
-            Addressing::Absolute => Operand::Address(self.fetch_word()),
-            Addressing::AbsoluteX => {
-                let orig = self.fetch_word();
-                let x = self.registers.index_x as u16;
-                let addr = orig.wrapping_add(x);
-                if (orig >> 8) != (addr >> 8) {
-                    clock_count += 1; // page cross
-                }
-                Operand::Address(addr)
-            }
-            _ => Operand::None,
-        };
-
         let calc_result = match instruction.kind {
             Kind::JMP => {
-                match operand {
-                    Operand::Address(addr) => {
+                match self.fetch_operand(&instruction.addressing) {
+                    Operand::Address(addr, _) => {
                         self.registers.program_counter = addr;
                     }
                     _ => {}
@@ -80,9 +52,12 @@ impl Cpu {
                 Some(self.registers.index_y)
             }
             Kind::STA => {
-                match operand {
-                    Operand::Address(addr) => {
+                match self.fetch_operand(&instruction.addressing) {
+                    Operand::Address(addr, page_crossed) => {
                         self.write(addr, self.registers.accumulator);
+                        if page_crossed {
+                            clock_count += 1;
+                        }
                     }
                     _ => {}
                 };
@@ -93,35 +68,50 @@ impl Cpu {
                 Some(self.registers.stack_pointer)
             }
             Kind::LDY => {
-                match operand {
+                match self.fetch_operand(&instruction.addressing) {
                     Operand::Value(v) => self.registers.index_y = v,
-                    Operand::Address(addr) => self.registers.index_y = self.read(addr),
+                    Operand::Address(addr, page_crossed) => {
+                        self.registers.index_y = self.read(addr);
+                        if page_crossed {
+                            clock_count += 1;
+                        }
+                    }
                     _ => {}
                 };
                 Some(self.registers.index_y)
             }
             Kind::LDX => {
-                match operand {
+                match self.fetch_operand(&instruction.addressing) {
                     Operand::Value(v) => self.registers.index_x = v,
-                    Operand::Address(addr) => self.registers.index_x = self.read(addr),
+                    Operand::Address(addr, page_crossed) => {
+                        self.registers.index_x = self.read(addr);
+                        if page_crossed {
+                            clock_count += 1;
+                        }
+                    }
                     _ => {}
                 };
                 Some(self.registers.index_x)
             }
             Kind::LDA => {
-                match operand {
+                match self.fetch_operand(&instruction.addressing) {
                     Operand::Value(v) => self.registers.accumulator = v,
-                    Operand::Address(addr) => self.registers.accumulator = self.read(addr),
+                    Operand::Address(addr, page_crossed) => {
+                        self.registers.accumulator = self.read(addr);
+                        if page_crossed {
+                            clock_count += 1;
+                        }
+                    }
                     _ => {}
                 };
                 Some(self.registers.accumulator)
             }
             Kind::BNE => {
-                match operand {
-                    Operand::Address(addr) => {
+                match self.fetch_operand(&instruction.addressing) {
+                    Operand::Address(addr, page_crossed) => {
                         if !self.registers.status.zero {
                             self.registers.program_counter = addr;
-                            clock_count += 1;
+                            clock_count += if page_crossed { 2 } else { 1 };
                         }
                     }
                     _ => {}
@@ -159,6 +149,32 @@ impl Cpu {
         lower + (upper << 8)
     }
 
+    fn fetch_operand(&mut self, addressing: &Addressing) -> Operand {
+        match addressing {
+            Addressing::Immediate => Operand::Value(self.fetch()),
+            Addressing::Relative => {
+                let offset = self.fetch() as i8;
+                let pc = self.registers.program_counter;
+                let addr = if offset >= 0 {
+                    pc.wrapping_add(offset as u16)
+                } else {
+                    pc.wrapping_sub(offset.abs() as u16)
+                };
+                let page_crossed = (pc >> 8) != (addr >> 8);
+                Operand::Address(addr, page_crossed)
+            }
+            Addressing::Absolute => Operand::Address(self.fetch_word(), false),
+            Addressing::AbsoluteX => {
+                let orig = self.fetch_word();
+                let x = self.registers.index_x as u16;
+                let addr = orig.wrapping_add(x);
+                let page_crossed = (orig >> 8) != (addr >> 8);
+                Operand::Address(addr, page_crossed)
+            }
+            _ => Operand::None,
+        }
+    }
+
     fn read(&self, addr: u16) -> u8 {
         match addr {
             0x0000..=0x07ff => self.ram.borrow()[addr as usize],
@@ -193,7 +209,7 @@ impl Cpu {
 
 #[derive(Debug, Eq, PartialEq)]
 enum Operand {
-    Address(u16),
+    Address(u16, bool),
     Value(u8),
     None,
 }
@@ -222,14 +238,16 @@ mod test {
     fn test_instruction_jmp_0x4c() {
         let (mut cpu, _ram) = prepare(&[0x4c, 0xff, 0x80]);
 
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 3);
         assert_eq!(cpu.get_registers().program_counter, 0x80ff);
     }
 
     #[test]
     fn test_instruction_sei_0x78() {
         let (mut cpu, _ram) = prepare(&[0x78]);
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert!(cpu.get_registers().status.irq_prohibited);
     }
 
@@ -238,11 +256,14 @@ mod test {
         let (mut cpu, _ram) = prepare(&[0x88, 0x88]);
         cpu.get_registers().index_y = 0x01;
 
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().index_y, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().index_y, 0xff);
         assert_eq!(cpu.get_registers().status.negative, true);
         assert_eq!(cpu.get_registers().status.zero, false);
@@ -252,20 +273,25 @@ mod test {
     fn test_instruction_sta_0x8d() {
         let (mut cpu, ram) = prepare(&[0x8d, 0x23, 0x01]);
         cpu.get_registers().accumulator = 0x56;
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 4);
         assert_eq!(ram.borrow()[0x0123], 0x56);
     }
 
     #[test]
     fn test_instruction_txs_0x9a() {
         let (mut cpu, _ram) = prepare(&[0x9a, 0x9a]);
+
         cpu.get_registers().index_x = 0xff;
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().stack_pointer, 0xff);
         assert_eq!(cpu.get_registers().status.negative, true);
         assert_eq!(cpu.get_registers().status.zero, false);
+
         cpu.get_registers().index_x = 0x00;
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().stack_pointer, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
@@ -274,11 +300,15 @@ mod test {
     #[test]
     fn test_instruction_ldy_0xa0() {
         let (mut cpu, _ram) = prepare(&[0xa0, 0xff, 0xa0, 0x00]);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().index_y, 0xff);
         assert_eq!(cpu.get_registers().status.negative, true);
         assert_eq!(cpu.get_registers().status.zero, false);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().index_y, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
@@ -287,11 +317,15 @@ mod test {
     #[test]
     fn test_instruction_ldx_0xa2() {
         let (mut cpu, _ram) = prepare(&[0xa2, 0xff, 0xa2, 0x00]);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().index_x, 0xff);
         assert_eq!(cpu.get_registers().status.negative, true);
         assert_eq!(cpu.get_registers().status.zero, false);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().index_x, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
@@ -300,11 +334,15 @@ mod test {
     #[test]
     fn test_instruction_lda_0xa9() {
         let (mut cpu, _ram) = prepare(&[0xa9, 0xff, 0xa9, 0x00]);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().accumulator, 0xff);
         assert_eq!(cpu.get_registers().status.negative, true);
         assert_eq!(cpu.get_registers().status.zero, false);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().accumulator, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
@@ -320,10 +358,15 @@ mod test {
         }
         cpu.get_registers().index_x = 0x56;
 
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 4);
         assert_eq!(cpu.get_registers().accumulator, 0xff);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 4);
         assert_eq!(cpu.get_registers().accumulator, 0x45);
+
+        // TODO: またぎ
     }
 
     #[test]
@@ -331,14 +374,19 @@ mod test {
         // INXの1回目は0になるから分岐せず、2回目のINXを実行したあとに分岐する
         let (mut cpu, _ram) = prepare(&[0xe8, 0xd0, 0xfa, 0xe8, 0xd0, 0xfa]);
         cpu.get_registers().index_x = 0xff;
+        assert_eq!(cpu.get_registers().program_counter, 0x8000);
 
-        assert_eq!(cpu.get_registers().program_counter, 0x8000);
         cpu.run();
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().program_counter, 0x8003);
+
         cpu.run();
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 3);
         assert_eq!(cpu.get_registers().program_counter, 0x8000);
+
+        // TODO: 4 のケース
     }
 
     #[test]
@@ -346,11 +394,14 @@ mod test {
         let (mut cpu, _ram) = prepare(&[0xe8, 0xe8]);
         cpu.get_registers().index_x = 0xfe;
 
-        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().index_x, 0xff);
         assert_eq!(cpu.get_registers().status.negative, true);
         assert_eq!(cpu.get_registers().status.zero, false);
-        cpu.run();
+
+        let clock = cpu.run();
+        assert_eq!(clock, 2);
         assert_eq!(cpu.get_registers().index_x, 0x00);
         assert_eq!(cpu.get_registers().status.negative, false);
         assert_eq!(cpu.get_registers().status.zero, true);
