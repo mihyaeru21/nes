@@ -350,11 +350,11 @@ mod test {
 
     #[test]
     fn test_instruction_lda_0xbd() {
-        let (mut cpu, ram) = prepare(&[0xbd, 0x00, 0x00, 0xbd, 0x23, 0x01]);
+        let (mut cpu, ram) = prepare(&[0xbd, 0x00, 0x00, 0xbd, 0xff, 0x01]);
         {
             let mut ram = ram.borrow_mut();
             ram[0x0056] = 0xff;
-            ram[0x0179] = 0x45;
+            ram[0x0255] = 0x45;
         }
         cpu.get_registers().index_x = 0x56;
 
@@ -363,10 +363,8 @@ mod test {
         assert_eq!(cpu.get_registers().accumulator, 0xff);
 
         let clock = cpu.run();
-        assert_eq!(clock, 4);
+        assert_eq!(clock, 5); // page crossed
         assert_eq!(cpu.get_registers().accumulator, 0x45);
-
-        // TODO: またぎ
     }
 
     #[test]
@@ -383,10 +381,14 @@ mod test {
 
         cpu.run();
         let clock = cpu.run();
-        assert_eq!(clock, 3);
+        assert_eq!(clock, 3); // branched
         assert_eq!(cpu.get_registers().program_counter, 0x8000);
 
-        // TODO: 4 のケース
+        cpu.get_registers().index_x = 0x00;
+        cpu.run();
+        let clock = cpu.run();
+        assert_eq!(clock, 4); // branched, page crossed
+        assert_eq!(cpu.get_registers().program_counter, 0x7ffd);
     }
 
     #[test]
