@@ -32,7 +32,7 @@ mod test {
 
     #[test]
     fn test_load() {
-        let mut reader = BufReader::new(File::open("./rom/sample1.nes").unwrap());
+        let mut reader = BufReader::new(File::open("./tests/rom/hello_world.nes").unwrap());
         let _ = Rom::load(&mut reader).unwrap();
     }
 
