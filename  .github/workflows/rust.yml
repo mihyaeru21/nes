@@ -20,3 +20,5 @@ jobs:
       run: cargo test --verbose
     - run: rustup component add clippy
     - uses: actions-rs/clippy-check@v1
+      with:
+        args: --tests --all-features
