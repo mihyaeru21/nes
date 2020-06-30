@@ -1,31 +1,34 @@
+use crate::ram::Ram;
 use instruction::{Addressing, Instruction, Kind};
 use register::Registers;
-use std::{cell::RefCell, rc::Rc};
+use std::rc::Rc;
 
 mod instruction;
 mod register;
 
-type Ram = Rc<RefCell<Vec<u8>>>;
-
 #[derive(Debug)]
 pub struct Cpu {
     registers: Registers,
-    rom: Rc<Vec<u8>>, // TODO: RcのやつはBusに切り出す？
+    rom: Option<Rc<Vec<u8>>>, // TODO: RcのやつはBusに切り出す？
     ram: Ram,
 }
 
 impl Cpu {
-    pub fn new(rom: Rc<Vec<u8>>, ram: Ram) -> Self {
+    pub fn new(ram: Ram) -> Self {
         Cpu {
             registers: Registers::default(),
-            rom,
+            rom: None,
             ram,
         }
     }
 
+    pub fn set_rom(&mut self, rom: Option<Rc<Vec<u8>>>) {
+        self.rom = rom;
+    }
+
     pub fn reset(&mut self) {
         self.registers = Registers::default();
-        self.registers.program_counter = self.read_word(0xfffc)
+        self.registers.program_counter = self.read_word(0xfffc);
     }
 
     pub fn run(&mut self) -> u8 {
@@ -180,9 +183,13 @@ impl Cpu {
             0x0000..=0x07ff => self.ram.borrow()[addr as usize],
             0x8000..=0xffff => {
                 let i = addr - 0x8000;
-                self.rom[i as usize]
+                if let Some(rom) = &self.rom {
+                    rom[i as usize]
+                } else {
+                    panic!("No ROM.")
+                }
             }
-            _ => panic!("Not implemented!"),
+            _ => panic!("Read not implemented! addr: 0x{:x}", addr),
         }
     }
 
@@ -197,8 +204,18 @@ impl Cpu {
             0x0000..=0x07ff => {
                 self.ram.borrow_mut()[addr as usize] = value;
             }
-            _ => panic!("Not implemented!"),
+            0x2000..=0x2007 => {
+                println!("@@@ write 0x{:x} to 0x{:x}", value, addr);
+            }
+            _ => panic!(
+                "Write not implemented! addr: 0x{:x}, value: 0x{:x}",
+                addr, value
+            ),
         }
+    }
+
+    pub fn dump_registers(&self) {
+        println!("{:?}", self.registers);
     }
 
     #[cfg(test)]
@@ -227,7 +244,8 @@ mod test {
 
         let rom = Rc::new(rom);
         let ram = Rc::new(RefCell::new(vec![0; 0x800]));
-        let mut cpu = Cpu::new(rom, ram);
+        let mut cpu = Cpu::new(ram);
+        cpu.set_rom(Some(rom));
         assert_eq!(cpu.get_registers().program_counter, 0);
 
         cpu.reset();
@@ -420,7 +438,8 @@ mod test {
 
         let rom = Rc::new(rom);
         let ram = Rc::new(RefCell::new(vec![0; 0x800]));
-        let mut cpu = Cpu::new(rom, ram.clone());
+        let mut cpu = Cpu::new(ram.clone());
+        cpu.set_rom(Some(rom));
         cpu.reset();
         (cpu, ram)
     }
