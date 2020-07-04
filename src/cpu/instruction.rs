@@ -19,7 +19,7 @@ impl Instruction {
             0xbd => (Kind::LDA, Addressing::AbsoluteX),
             0xd0 => (Kind::BNE, Addressing::Relative),
             0xe8 => (Kind::INX, Addressing::Implied),
-            _ => panic!("Not Implemented!"),
+            _ => panic!("Instruction is not implemented! 0x{:x}", opcode),
         };
         Self { kind, addressing }
     }
