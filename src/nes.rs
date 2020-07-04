@@ -5,7 +5,7 @@ use std::{cell::RefCell, rc::Rc, thread::sleep, time};
 pub struct Nes {
     cpu: Cpu,
     wram: Ram,
-    rom: Option<Rc<Rom>>, // Rcやめたい
+    rom: Option<Rc<Rom>>,
 }
 
 impl Nes {
@@ -21,7 +21,7 @@ impl Nes {
     }
 
     pub fn set_rom(&mut self, rom: Rom) {
-        let program = Rc::new(rom.program.clone()); // Rcやめたい
+        let program = Rc::new(rom.program.clone());
         self.rom = Some(Rc::new(rom));
         self.cpu.set_rom(Some(program));
     }

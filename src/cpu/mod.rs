@@ -9,7 +9,7 @@ mod register;
 #[derive(Debug)]
 pub struct Cpu {
     registers: Registers,
-    rom: Option<Rc<Vec<u8>>>, // TODO: RcのやつはBusに切り出す？
+    rom: Option<Rc<Vec<u8>>>,
     ram: Ram,
 }
 
